@@ -1,29 +1,32 @@
-romanBase = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"] 
-arabicBase = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
-romanArabicKey = zip romanBase arabicBase
+romanBase  = [ "M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I" ] 
+romanBaseOK = romanBase ++ ["MM","MD", "MC","ML","MX","MV","MI","DC","DL","DX","DV","DI", "CC","CL","CX","CV","CI", "LX","LV","LI", "XX", "XV","XI", "VI", "II" ]
+romanBase1  = [ 'M', 'D', 'C', 'L', 'X', 'V', 'I' ] 
+arabicBase = [1000,  900, 500,  400, 100,   90,  50,   40,  10,    9,   5,    4,   1 ]
+arabicBase1 = [1000,  500,  100,   50,   10,    5,    1 ]
+romanArabicKey = zip romanBase1 arabicBase1
 
-romanCalc :: [Char] -> Float 
+romanCalc :: [Char] -> Float
 -- Inputs:
 --   str (string) : Two roman numerals and an operation of the form "II + XI" or "MDI / III"
 -- Output:
 --   The result of the operation on the roman numerals, in arabic form
-romanCalc str | op == "+" = num1 + num2
-              | op == "*" = num1 * num2
-              | op == "-" = num1 - num2
-              | op == "/" = num1 / num2 -- This is repetitive but I don't know how to paste in the operation otherwise
-                where (num1, op, num2) = (1,"+",1)
-
--- strSplit (x:'+':y) = (x,'+',y)
--- strSplit str = error "The input does not contain any operation (+, *, -, /)"
+romanCalc str | op == '+' = realToFrac(num1) + realToFrac(num2)
+              | op == '*' = realToFrac(num1) * realToFrac(num2)
+              | op == '-' = realToFrac(num1) - realToFrac(num2)
+              | op == '/' = realToFrac(num1) / realToFrac(num2) -- This is repetitive but I don't know how to paste in the operation otherwise
+                where (num1, num2) = (romanToArabic ro1, romanToArabic ro2)
+                      (ro1, op, ro2) = strSplit (stripSpaces str)
 
 strSplit :: [Char] -> ([Char], Char, [Char])
 -- Inputs:
 --   str (string)
 -- Outputs:
 --   (part1, op, part2), where part1 is the first part of the string (before any of +, *, - or / is found in str) and part2 is the last part of the string (after the operation)
-strSplit str = case break (== '+') str of -- How to take care of all operations in one go? Use elem?
-          (s, _:r) -> (s,'+',r)
-          _        -> error "No operation found in input (must be one and only one of +, *, - or /)"
+strSplit str | all (\x -> x `notElem` ['+','*','-','/']) str = error "No operation found in input (must be one and only one of +, *, - or /)"
+             | otherwise = sepOp (break (\x -> x `elem` ['+','*','-','/']) str)
+               where sepOp (p1, op:p2) = (p1, op, p2)
+
+stripSpaces str = [ char | char <- str, char /= ' ' ]
 
 isRoman :: [Char] -> Bool
 -- Inputs:
@@ -31,8 +34,8 @@ isRoman :: [Char] -> Bool
 -- Output:
 --   True if str is a valid roman numeral
 --   False otherwise
--- isRoman str = not (or (map (\x -> contains x str) forbiddenRoman)) 
-isRoman str = and [ x `elem` romanBase | x <- substr str 1 ++ substr str 2 ]
+isRoman str = and [ x `elem` romanBaseOK | x <- substr str 1 ++ substr str 2 ]
+
 forbiddenRoman = ["IIII", "VV", "XXXX", "LL", "CCCC", "DD"] ++ [ [x] | x <- ['A'..'Z'] ++ ['1'..'9'], x `notElem` ['M', 'D', 'C', 'L', 'X', 'V', 'I'] ]
 
 -- divide str into 1-substrings and 2-substrings. Put all of those in a list. For each one, ask: is this in the romanBase?
@@ -47,7 +50,25 @@ romanToArabic :: [Char] -> Int
 -- Output:
 --   The corresponding number in arabic form (1, 2, ...)
 romanToArabic str | not (isRoman str) = error (str ++ " is not a valid roman numeral!")
-                  | otherwise = 1
+                  | otherwise = sum (romanAdapt (romanConvert str))
+
+romanConvert :: [Char] -> [Int]
+-- Inputs:
+--   Roman number (string)R. 
+-- Output:
+--   The equivalent in arabic form, using the conversion key. The result has to be adapted to the roman number syntax using romanAdapt.
+-- E.g.: romanConvert "XIV" => [10, 1, 5]
+romanConvert str = map (\x -> ((\(Just i) -> i) (lookup x romanArabicKey))) str
+
+romanAdapt :: [Int] -> [Int]
+-- Inputs:
+--   List: A list containing the translations of individual roman numbers
+-- Output:
+--   The same list adapted for roman number syntax
+-- E.g.: romanAdapt [10, 1, 5] => [10, -1, 5]
+romanAdapt [] = []
+romanAdapt [x] = [x]
+romanAdapt (x:y:xs) = if x<y then -x:(romanAdapt (y:xs)) else x:(romanAdapt (y:xs))
 
 arabicToRoman :: Int -> [Char]
 -- Inputs:
@@ -55,7 +76,6 @@ arabicToRoman :: Int -> [Char]
 -- Output:
 --   The corresponding number in roman numeral form ("I", "II", ...)
 arabicToRoman n = dotChar (baseDecomposition n arabicBase) romanBase
--- use sequential eclidean division with fold to form an improper roman numeral (with "IIII" and such) and filter the result 
 
 dotChar :: [Int] -> [[Char]] -> [Char]
 -- Inputs:
